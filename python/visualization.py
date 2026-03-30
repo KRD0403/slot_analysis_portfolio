@@ -2,13 +2,22 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 import itertools
+import os
+
+# =========================
+# ■ パス設定
+# =========================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "..", "data", "data.csv")
+IMAGES_DIR = os.path.join(BASE_DIR, "..", "images")
+os.makedirs(IMAGES_DIR, exist_ok=True)
 
 # =========================
 # ■ 日本語対応
 # =========================
 matplotlib.rcParams['font.family'] = 'sans-serif'
 matplotlib.rcParams['font.sans-serif'] = [
-    'Hiragino Sans', 'Yu Gothic', 'Meirio', 'IPAexGothic', 'DejaVu Sans'
+    'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'IPAexGothic', 'DejaVu Sans'
 ]
 matplotlib.rcParams['axes.unicode_minus'] = False
 
@@ -17,7 +26,7 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 # ■ データ読み込み
 # =========================
 def load_data():
-    df = pd.read_csv("../data/data.csv")
+    df = pd.read_csv(DATA_PATH)
 
     df.columns = df.columns.str.replace(" ", "").str.strip()
 
@@ -65,21 +74,23 @@ def plot_setting(grouped):
     x = range(len(grouped.index))
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-    axes[0].bar(x, grouped["utilization"])
-    axes[0].set_title("設定別 平均稼働率")
+    cols = ["utilization", "profit_per_game", "daily_profit"]
+    titles = ["設定別 平均稼働率", "設定別 平均1G利益", "設定別 平均1日利益"]
+    ylabels = ["稼働率", "1Gあたり利益（円）", "1日利益（円）"]
 
-    axes[1].bar(x, grouped["profit_per_game"])
-    axes[1].set_title("設定別 平均1G利益")
-
-    axes[2].bar(x, grouped["daily_profit"])
-    axes[2].set_title("設定別 平均1日利益")
-
-    for ax in axes:
+    for ax, col, title, ylabel in zip(axes, cols, titles, ylabels):
+        bars = ax.bar(x, grouped[col])
+        ax.set_title(title)
+        ax.set_xlabel("推定設定")
+        ax.set_ylabel(ylabel)
         ax.set_xticks(x)
         ax.set_xticklabels(grouped.index)
+        for bar, val in zip(bars, grouped[col]):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
+                    f"{val:.2f}", ha='center', va='bottom', fontsize=9)
 
     plt.tight_layout()
-    plt.savefig("../images/Figure_1.png")
+    plt.savefig(os.path.join(IMAGES_DIR, "Figure_1.png"))
     plt.show()
 
 
@@ -92,18 +103,23 @@ def plot_store(df):
     x = range(len(grouped.index))
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    axes[0].bar(x, grouped["utilization"])
-    axes[0].set_title("店舗別 平均稼働率")
+    cols = ["utilization", "profit_per_game"]
+    titles = ["店舗別 平均稼働率", "店舗別 平均1G利益"]
+    ylabels = ["稼働率", "1Gあたり利益（円）"]
 
-    axes[1].bar(x, grouped["profit_per_game"])
-    axes[1].set_title("店舗別 平均1G利益")
-
-    for ax in axes:
+    for ax, col, title, ylabel in zip(axes, cols, titles, ylabels):
+        bars = ax.bar(x, grouped[col])
+        ax.set_title(title)
+        ax.set_xlabel("店舗")
+        ax.set_ylabel(ylabel)
         ax.set_xticks(x)
         ax.set_xticklabels(grouped.index)
+        for bar, val in zip(bars, grouped[col]):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
+                    f"{val:.2f}", ha='center', va='bottom', fontsize=9)
 
     plt.tight_layout()
-    plt.savefig("../images/Figure_2.png")
+    plt.savefig(os.path.join(IMAGES_DIR, "Figure_2.png"))
     plt.show()
 
 
@@ -121,10 +137,13 @@ def plot_event_distribution(df):
         fill_value=0
     )
 
-    pivot.plot(kind="bar", stacked=True, figsize=(10, 6))
-    plt.title("店舗×イベント別 設定配分")
+    ax = pivot.plot(kind="bar", stacked=True, figsize=(10, 6))
+    ax.set_title("店舗×イベント別 設定配分")
+    ax.set_xlabel("店舗 / イベント")
+    ax.set_ylabel("設定比率")
+    ax.legend(title="推定設定", bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig("../images/Figure_3.png")
+    plt.savefig(os.path.join(IMAGES_DIR, "Figure_3.png"))
     plt.show()
 
 
@@ -134,17 +153,29 @@ def plot_event_utilization(df):
     x = range(len(grouped.index))
     width = 0.25
 
-    plt.figure(figsize=(10, 6))
+    event_labels = ["通常", "特定日", "ファン感"]
+    colors = ["steelblue", "darkorange", "green"]
 
-    plt.bar([i - width for i in x], grouped["通常"], width)
-    plt.bar(x, grouped["特定日"], width)
-    plt.bar([i + width for i in x], grouped["ファン感"], width)
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    plt.xticks(x, grouped.index)
-    plt.title("店舗別 イベント別稼働率")
+    for i, (label, color) in enumerate(zip(event_labels, colors)):
+        if label in grouped.columns:
+            offset = (i - 1) * width
+            bars = ax.bar([xi + offset for xi in x], grouped[label], width,
+                          label=label, color=color)
+            for bar, val in zip(bars, grouped[label]):
+                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
+                        f"{val:.2f}", ha='center', va='bottom', fontsize=8)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(grouped.index)
+    ax.set_title("店舗別 イベント別稼働率")
+    ax.set_xlabel("店舗")
+    ax.set_ylabel("稼働率")
+    ax.legend(title="イベント種別")
 
     plt.tight_layout()
-    plt.savefig("../images/Figure_4.png")
+    plt.savefig(os.path.join(IMAGES_DIR, "Figure_4.png"))
     plt.show()
 
 
@@ -152,12 +183,9 @@ def plot_event_utilization(df):
 # ■ 最適配分（全探索）
 # =========================
 def optimize_with_rate(df):
-
-    import itertools
-
     df["payout_rate"] = df["払出枚数(OUT)"] / df["投入枚数(IN)"]
 
-    # ★疑似還元
+    # 疑似還元補正
     df["payout_rate_adj"] = df["payout_rate"]
     df.loc[df["setting"] == 5, "payout_rate_adj"] *= 1.1
     df.loc[df["setting"] == 6, "payout_rate_adj"] *= 1.2
@@ -194,7 +222,7 @@ def optimize_with_rate(df):
 
             alloc_dict = {i+1: alloc[i] for i in range(6)}
 
-            # ★制約
+            # 設定6は最大3台までの制約
             if alloc_dict[6] > 3:
                 continue
 
@@ -202,10 +230,9 @@ def optimize_with_rate(df):
             util = calc_util(alloc_dict)
 
             diff = abs(rate - target)
-
             score = -diff + util * 0.3
 
-            # ★イベント専用ロジック追加
+            # イベント専用ロジック
             if "イベント" in name:
                 high_bonus = alloc_dict[5] * 0.1 + alloc_dict[6] * 0.2
                 score += high_bonus
@@ -218,6 +245,8 @@ def optimize_with_rate(df):
         print("設定配分:", format_alloc(best_alloc))
         print(f"割数: {calc_rate(best_alloc):.3f}")
         print(f"稼働率: {calc_util(best_alloc):.3f}")
+
+
 def optimize(df):
     stats = df.groupby("setting")[["utilization", "profit", "profit_per_game"]].mean()
 
@@ -242,7 +271,6 @@ def optimize(df):
     best_balance_score = -1
     best_event_score = -1
 
-    # 全探索（6^10じゃなく、10台の配分）
     for alloc in itertools.product(range(11), repeat=6):
         if sum(alloc) != 10:
             continue
