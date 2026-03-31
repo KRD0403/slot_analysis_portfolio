@@ -28,23 +28,22 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 def load_data():
     df = pd.read_csv(DATA_PATH)
 
+    # カラム名のスペース・空白を除去
     df.columns = df.columns.str.replace(" ", "").str.strip()
 
     df.rename(columns={
         "推定設定": "setting",
         "稼働率": "utilization",
-        "利益(円)": "profit"
+        "利益(円)": "profit",
+        "1Gあたり利益": "profit_per_game"
     }, inplace=True)
 
     # 異常値除外
     df = df[df["データ異常"] == 0]
 
-    # profit_per_game保証
+    # profit_per_game保証（カラムが存在しない場合のフォールバック）
     if "profit_per_game" not in df.columns:
-        if "1Gあたり利益" in df.columns:
-            df["profit_per_game"] = df["1Gあたり利益"]
-        else:
-            df["profit_per_game"] = df["profit"] / df["spins"]
+        df["profit_per_game"] = df["profit"] / df["spins"]
 
     df["daily_profit"] = df["profit"]
 
@@ -261,15 +260,8 @@ def optimize(df):
     stats["balance"] = stats["profit_norm"] * 0.5 + stats["util_norm"] * 0.5
     stats["customer"] = 1 - stats["ppg_norm"]
 
-    best_profit = None
-    best_util = None
-    best_balance = None
-    best_event = None
-
-    best_profit_score = -1
-    best_util_score = -1
-    best_balance_score = -1
-    best_event_score = -1
+    best_profit = best_util = best_balance = best_event = None
+    best_profit_score = best_util_score = best_balance_score = best_event_score = -1
 
     for alloc in itertools.product(range(11), repeat=6):
         if sum(alloc) != 10:
@@ -302,14 +294,12 @@ def optimize(df):
         util = sum(stats.loc[s, "utilization"] * c for s, c in alloc.items()) / 10
         profit = sum(stats.loc[s, "profit"] * c for s, c in alloc.items())
         text = " / ".join([f"設定{s}：{c}台" for s, c in alloc.items() if c > 0])
-
         print(f"\n{name}")
         print("設定配分:", text)
         print(f"稼働率: {util:.3f}")
         print(f"利益: {int(profit):,}円")
 
     print("\n■ 最適配分（全探索）")
-
     show("利益最大", best_profit)
     show("稼働最大", best_util)
     show("バランス最適", best_balance)
